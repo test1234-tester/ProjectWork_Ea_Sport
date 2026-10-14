@@ -13,7 +13,7 @@ import { AuthService } from '../services/auth.service';
         <h1 class="login-title">Accedi al tuo profilo</h1>
         <p class="login-subtitle">Inserisci i tuoi dati per partecipare ai tornei.</p>
 
-        <form (ngSubmit)="onSubmit()" class="login-form">
+        <form (ngSubmit)="inviaForm()" class="login-form">
           <!-- Campo Email -->
           <div class="form-group">
             <label for="email">Email</label>
@@ -21,7 +21,7 @@ import { AuthService } from '../services/auth.service';
               type="email" 
               id="email" 
               name="email" 
-              [(ngModel)]="formData.email" 
+              [(ngModel)]="datiForm.email" 
               required 
               autocomplete="email"
               placeholder="nome@esempio.it"
@@ -33,21 +33,21 @@ import { AuthService } from '../services/auth.service';
             <label for="password">Password</label>
             <div class="password-wrapper">
               <input 
-                [type]="showPassword ? 'text' : 'password'" 
+                [type]="mostraPassword ? 'text' : 'password'" 
                 id="password" 
                 name="password" 
-                [(ngModel)]="formData.password" 
+                [(ngModel)]="datiForm.password" 
                 required 
                 autocomplete="current-password"
               />
               <button 
                 type="button" 
                 class="btn-toggle-password" 
-                (click)="togglePasswordVisibility()" 
-                [attr.aria-label]="showPassword ? 'Nascondi password' : 'Mostra password'"
-                [title]="showPassword ? 'Nascondi password' : 'Mostra password'"
+                (click)="alternaVisibilitaPassword()" 
+                [attr.aria-label]="mostraPassword ? 'Nascondi password' : 'Mostra password'"
+                [title]="mostraPassword ? 'Nascondi password' : 'Mostra password'"
               >
-                @if (showPassword) {
+                @if (mostraPassword) {
                   <!-- Icona Occhio Aperto -->
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
@@ -250,22 +250,36 @@ export class LoginComponent {
   private router = inject(Router);
   private authService = inject(AuthService);
 
-  formData = {
+  datiForm = {
     email: '',
     password: ''
   };
 
-  showPassword = false;
+  mostraPassword = false;
 
-  togglePasswordVisibility() {
-    this.showPassword = !this.showPassword;
+  // Alias retrocompatibili
+  get formData() { return this.datiForm; }
+  get showPassword() { return this.mostraPassword; }
+
+  alternaVisibilitaPassword() {
+    this.mostraPassword = !this.mostraPassword;
   }
+  togglePasswordVisibility() { this.alternaVisibilitaPassword(); }
 
-  onSubmit() {
-    console.log('Login form submitted:', this.formData);
+  inviaForm() {
+    console.log('Modulo di accesso inviato:', this.datiForm);
+    
     // 1. Simula l'accesso dell'utente nel servizio mock
-    this.authService.login(this.formData.email);
-    // 2. Reindirizza direttamente all'Area Utente
-    this.router.navigate(['/user-area']);
+    this.authService.accedi(this.datiForm.email);
+
+    // 2. Controllo del ruolo: Reindirizza alla pagina admin se l'email contiene "admin"
+    if (this.datiForm.email.toLowerCase().includes('admin')) {
+      this.router.navigate(['/admin']);
+    } else {
+      this.router.navigate(['/user-area']);
+    }
   }
+  onSubmit() { this.inviaForm(); }
 }
+
+//Aggiunta Dashboard Admin e correzione login

@@ -13,31 +13,31 @@ import { AuthService } from '../services/auth.service';
         <h1 class="register-title">Registrati</h1>
         <p class="register-subtitle">Crea un nuovo account per partecipare ai tornei.</p>
 
-        <form (ngSubmit)="onSubmit()" class="register-form">
+        <form (ngSubmit)="inviaRegistrazione()" class="register-form">
           <div class="form-row">
             <div class="form-group">
               <label for="nome">Nome</label>
-              <input type="text" id="nome" name="nome" [(ngModel)]="formData.nome" required placeholder="Nome" />
+              <input type="text" id="nome" name="nome" [(ngModel)]="datiRegistrazione.nome" required placeholder="Nome" />
             </div>
             <div class="form-group">
               <label for="cognome">Cognome</label>
-              <input type="text" id="cognome" name="cognome" [(ngModel)]="formData.cognome" required placeholder="Cognome" />
+              <input type="text" id="cognome" name="cognome" [(ngModel)]="datiRegistrazione.cognome" required placeholder="Cognome" />
             </div>
           </div>
 
           <div class="form-group">
             <label for="email">Email</label>
-            <input type="email" id="email" name="email" [(ngModel)]="formData.email" required placeholder="nome@esempio.it" />
+            <input type="email" id="email" name="email" [(ngModel)]="datiRegistrazione.email" required placeholder="nome@esempio.it" />
           </div>
 
           <div class="form-row">
             <div class="form-group">
               <label for="password">Crea Password</label>
-              <input [type]="showPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="formData.password" required />
+              <input [type]="mostraPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="datiRegistrazione.password" required />
             </div>
             <div class="form-group">
               <label for="confirmPassword">Conferma Password</label>
-              <input [type]="showPassword ? 'text' : 'password'" id="confirmPassword" name="confirmPassword" [(ngModel)]="formData.confirmPassword" required />
+              <input [type]="mostraPassword ? 'text' : 'password'" id="confirmPassword" name="confirmPassword" [(ngModel)]="datiRegistrazione.confermaPassword" required />
             </div>
           </div>
 
@@ -51,14 +51,14 @@ import { AuthService } from '../services/auth.service';
     </div>
 
     <!-- MODAL CARD: REGISTRAZIONE COMPLETATA -->
-    @if (showSuccessModal) {
+    @if (mostraModalSuccesso) {
       <div class="modal-backdrop">
         <div class="success-card">
           <div class="success-icon">🎉</div>
           <h2 class="success-title">Sei stato registrato!</h2>
           <p class="success-text">Il tuo account è stato creato con successo. Ora puoi accedere e partecipare a tutti i tornei dell'ITS.</p>
 
-          <button type="button" class="btn-go-login" (click)="goToLogin()">
+          <button type="button" class="btn-go-login" (click)="vaiAlLogin()">
             Clicca qui per accedere
           </button>
         </div>
@@ -108,21 +108,29 @@ export class RegisterComponent {
   private router = inject(Router);
   private authService = inject(AuthService);
 
-  formData = { nome: '', cognome: '', email: '', password: '', confirmPassword: '' };
-  showPassword = false;
-  showSuccessModal = false;
+  datiRegistrazione = { nome: '', cognome: '', email: '', password: '', confermaPassword: '' };
+  mostraPassword = false;
+  mostraModalSuccesso = false;
 
-  onSubmit() {
-    this.authService.register({
-      nome: this.formData.nome,
-      cognome: this.formData.cognome,
-      email: this.formData.email
+  // Alias retrocompatibili
+  get formData() { return this.datiRegistrazione; }
+  get showPassword() { return this.mostraPassword; }
+  get showSuccessModal() { return this.mostraModalSuccesso; }
+
+  inviaRegistrazione() {
+    this.authService.registra({
+      nome: this.datiRegistrazione.nome,
+      cognome: this.datiRegistrazione.cognome,
+      email: this.datiRegistrazione.email,
+      password: this.datiRegistrazione.password
     });
-    this.showSuccessModal = true;
+    this.mostraModalSuccesso = true;
   }
+  onSubmit() { this.inviaRegistrazione(); }
 
-  goToLogin() {
-    this.showSuccessModal = false;
+  vaiAlLogin() {
+    this.mostraModalSuccesso = false;
     this.router.navigate(['/login']);
   }
+  goToLogin() { this.vaiAlLogin(); }
 }

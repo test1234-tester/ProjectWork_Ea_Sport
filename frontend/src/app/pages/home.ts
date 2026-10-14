@@ -1,16 +1,17 @@
 import { Component } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-interface FaqItem {
+// Entità FAQ e Partner dal Documento Requisiti (pagg. 3, 20)
+interface Faq {
   id: number;
-  question: string;
-  answer: string;
-  isOpen: boolean;
+  domanda: string;
+  risposta: string;
+  aperta: boolean;
 }
 
-interface PartnerItem {
+interface Partner {
   id: number;
-  name: string;
+  nome: string;
   logo: string;
 }
 
@@ -25,24 +26,24 @@ interface PartnerItem {
       <section class="hero-section">
         <div class="hero-content">
           <span class="hero-overline">
-            Tornei per tutti gli studenti.
+            🎮 Il Circuito E-Sports Ufficiale
           </span>
           <h1 class="hero-title">
-            Dalla teoria al campo: <br />accendi la competizione!
+            Dalla passione all'arena: <br />accendi la sfida del gaming!
           </h1>
           <p class="hero-description">
-            Sviluppa le tue competenze con i nostri tornei, ideati per darti un vantaggio competitivo e farti emergere nel tuo campo. Unisciti alla nostra community di successo.
+            Metti alla prova riflessi, strategia e gioco di squadra nei tornei eSports più competitivi. Da EA Sports FC a Rocket League e Valorant, sfida i migliori gamer del campus e scala le classifiche per conquistare la vittoria.
           </p>
           
           <div class="hero-actions">
             <a routerLink="/register" class="btn btn-primary">
-              <span>Registrati per iscriverti ai tornei</span>
+              <span>Iscriviti ai tornei gaming</span>
               <span class="btn-arrow">&rarr;</span>
             </a>
             <a routerLink="/tornei" class="btn btn-secondary">Esplora i tornei</a>
           </div>
           
-          <span class="hero-caption">Divertiti con i nostri tornei</span>
+          <span class="hero-caption">⚡ Postazioni LAN, server dedicati, premi esclusivi e live streaming</span>
         </div>
 
         <!-- Box Video Header -->
@@ -68,11 +69,11 @@ interface PartnerItem {
         <h2 class="section-title">I nostri alleati</h2>
         
         <div class="partners-grid">
-          @for (partner of partners; track partner.id) {
-            <div class="partner-card" [attr.aria-label]="partner.name">
+          @for (p of partner; track p.id) {
+            <div class="partner-card" [attr.aria-label]="p.nome">
               <img 
-                [src]="partner.logo" 
-                [alt]="partner.name" 
+                [src]="p.logo" 
+                [alt]="p.nome" 
                 class="partner-logo-img" 
               />
             </div>
@@ -95,16 +96,16 @@ interface PartnerItem {
 
         <!-- Colonna Destra: Accordion Interattivo -->
         <div class="faq-accordion-col">
-          @for (faq of faqs; track faq.id) {
-            <div class="faq-item" [class.is-open]="faq.isOpen">
-              <button class="faq-question-btn" (click)="toggleFaq(faq)" type="button">
-                <span class="faq-question-text">{{ faq.question }}</span>
-                <span class="faq-toggle-icon">{{ faq.isOpen ? '−' : '+' }}</span>
+          @for (item of elencoFaq; track item.id) {
+            <div class="faq-item" [class.is-open]="item.aperta">
+              <button class="faq-question-btn" (click)="alternaFaq(item)" type="button">
+                <span class="faq-question-text">{{ item.domanda }}</span>
+                <span class="faq-toggle-icon">{{ item.aperta ? '−' : '+' }}</span>
               </button>
               
-              @if (faq.isOpen) {
+              @if (item.aperta) {
                 <div class="faq-answer">
-                  <p>{{ faq.answer }}</p>
+                  <p>{{ item.risposta }}</p>
                 </div>
               }
             </div>
@@ -458,41 +459,47 @@ interface PartnerItem {
   `]
 })
 export class HomeComponent {
-  partners: PartnerItem[] = [
-    { id: 1, name: 'DGS', logo: '/dgs.png' },
-    { id: 2, name: 'Exprivia', logo: '/exprivia.jpg' },
-    { id: 3, name: 'Cyber 4.0', logo: '/cyber40.jpg' },
-    { id: 4, name: 'One O One Games', logo: '/onegames.png' }
+  partner: Partner[] = [
+    { id: 1, nome: 'DGS', logo: '/dgs.png' },
+    { id: 2, nome: 'Exprivia', logo: '/exprivia.jpg' },
+    { id: 3, nome: 'Cyber 4.0', logo: '/cyber40.jpg' },
+    { id: 4, nome: 'One O One Games', logo: '/onegames.png' }
   ];
 
-  faqs: FaqItem[] = [
+  elencoFaq: Faq[] = [
     {
       id: 1,
-      question: 'Chi può partecipare ai tornei?',
-      answer: 'I nostri corsi sono aperti a tutti gli studenti e vengono svolti individualmente.',
-      isOpen: true
+      domanda: 'Chi può partecipare ai tornei di gaming?',
+      risposta: 'Tutti gli studenti e appassionati di gaming! I tornei sono aperti sia a singoli player (sfide 1v1 come FC 25 o Tekken) sia a team per i titoli a squadre (Rocket League, Valorant, League of Legends).',
+      aperta: true
     },
     {
       id: 2,
-      question: 'Come posso iscrivermi a un torneo?',
-      answer: 'Puoi registrarti alla piattaforma, accedere al catalogo dei tornei e cliccare sul pulsante di iscrizione.',
-      isOpen: false
+      domanda: 'Come posso iscrivermi a una competizione?',
+      risposta: 'Crea il tuo profilo giocatore, esplora la sezione Tornei, scegli la tua disciplina gaming e clicca su "Iscriviti ora". Se il numero massimo di partecipanti è raggiunto, puoi metterti in coda per subentrare in caso di forfait.',
+      aperta: false
     },
     {
       id: 3,
-      question: 'I tornei sono online o in presenza?',
-      answer: 'I tornei possono essere sia online, che in prensenza. La modalità viene indicata nella descrizione del torneo.',
-      isOpen: false
+      domanda: 'I match si svolgono online o in presenza (LAN party)?',
+      risposta: 'Organizziamo sia match online con server dedicati e coordinamento Discord, sia entusiasmanti eventi in presenza nelle nostre aree LAN attrezzate con PC gaming, console PS5 e maxischermi.',
+      aperta: false
     },
     {
-      id: 7,
-      question: 'Come posso contattare il supporto tecnico?',
-      answer: 'Puoi inviarci un e-mail a itslaziodigital@gmail.com oppure utilizzare la sezione contatti.',
-      isOpen: false
+      id: 4,
+      domanda: 'Quali piattaforme di gioco sono supportate?',
+      risposta: 'Supportiamo tornei su PlayStation 5, PC da gaming e Nintendo Switch, con regole competitive ufficiali per ogni titolo.',
+      aperta: false
+    },
+    {
+      id: 5,
+      domanda: 'Come posso contattare gli arbitri o l\'assistenza?',
+      risposta: 'Puoi contattare lo staff organizzativo e gli arbitri del torneo tramite e-mail a itslaziodigital@gmail.com oppure direttamente tramite il server Discord ufficiale durante le giornate di gara.',
+      aperta: false
     }
   ];
 
-  toggleFaq(selectedFaq: FaqItem) {
-    selectedFaq.isOpen = !selectedFaq.isOpen;
+  alternaFaq(faqSelezionata: Faq) {
+    faqSelezionata.aperta = !faqSelezionata.aperta;
   }
 }

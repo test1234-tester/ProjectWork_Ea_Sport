@@ -159,6 +159,7 @@ export class AuthService {
       // Limite raggiunto: mostra alert, NON mettere in coda
       return throwError(() => ({
         error: {
+          errore: `Hai raggiunto il limite di ${limite} iscrizioni contemporanee. Annulla un'iscrizione per potertene iscrivere a nuovi tornei.`,
           error: `Hai raggiunto il limite di ${limite} iscrizioni contemporanee. Annulla un'iscrizione per potertene iscrivere a nuovi tornei.`
         }
       }));
@@ -166,9 +167,14 @@ export class AuthService {
 
     const payload = { utente_id: utente?.id, torneo_id: torneoId, stato, posizione_coda: posizioneCoda };
 
-    return this.http.post<Iscrizione>(`${this.apiUrl}/iscrizioni`, payload).pipe(
-      tap(nuovaIscrizione => {
-        this.iscrizioniUtente.set([...this.iscrizioniUtente(), nuovaIscrizione]);
+    return this.http.post<any>(`${this.apiUrl}/iscrizioni`, payload).pipe(
+      tap((risposta: any) => {
+        // Il backend restituisce { messaggio, iscrizione: { id, torneo_id, stato, data_iscrizione } }
+        // oppure direttamente l'oggetto iscrizione (retrocompatibilità)
+        const nuovaIscrizione: Iscrizione = risposta?.iscrizione ?? risposta;
+        if (nuovaIscrizione?.torneo_id) {
+          this.iscrizioniUtente.set([...this.iscrizioniUtente(), nuovaIscrizione]);
+        }
       })
     );
   }

@@ -321,10 +321,12 @@ export class TorneiComponent implements OnInit {
   eseguiIscrizione(torneo: Torneo) {
     this.iscrizioneInCorso.set(torneo.id);
     this.authService.iscriviAlTorneo(torneo.id, 'Confermata').subscribe({
-      next: (isc) => {
+      next: (risposta: any) => {
         this.iscrizioneInCorso.set(null);
         this.torneoDaConfermare.set(null);
-        const stato = isc.stato === 'In_Attesa' ? 'in lista d\'attesa' : 'confermata';
+        // Il backend restituisce { messaggio, iscrizione: { stato, ... } }
+        const statoIscrizione = risposta?.iscrizione?.stato ?? risposta?.stato;
+        const stato = statoIscrizione === 'In_Attesa' ? 'in lista d\'attesa' : 'confermata';
         this.messaggioSuccessoIscrizione.set(`Iscrizione ${stato} al torneo "${torneo.nome}"! Verifica nella tua Area Utente.`);
         this.caricaTorneiDalDatabase();
         this.authService.caricaIscrizioni();
@@ -333,7 +335,7 @@ export class TorneiComponent implements OnInit {
       error: (err) => {
         this.iscrizioneInCorso.set(null);
         this.torneoDaConfermare.set(null);
-        const msg = err.error?.error || 'Errore durante l\'iscrizione al torneo.';
+        const msg = err.error?.errore || err.error?.error || 'Errore durante l\'iscrizione al torneo.';
         alert(msg);
         this.cdr.markForCheck();
       }

@@ -349,7 +349,7 @@ export class UserAreaComponent implements OnInit {
         this.authService.caricaIscrizioni(); // Aggiorna anche il segnale condiviso (usato da eIscritto())
       },
       error: (err) => {
-        alert(err.error?.error || 'Errore durante l\'annullamento dell\'iscrizione.');
+        alert(err.error?.errore || err.error?.error || 'Errore durante l\'annullamento dell\'iscrizione.');
         this.chiudiModalAnnullamento();
       }
     });

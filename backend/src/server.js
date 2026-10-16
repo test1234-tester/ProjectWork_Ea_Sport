@@ -29,7 +29,9 @@ app.use(express.json());
 const asyncRoute = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
 
-// Middleware di autenticazione opzionale o obbligatoria
+// -------------------------------------------------------
+// MIDDLEWARE AUTENTICAZIONE
+// -------------------------------------------------------
 function extractUserFromToken(req) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -44,7 +46,7 @@ function extractUserFromToken(req) {
 function authRequired(req, res, next) {
   const user = extractUserFromToken(req);
   if (!user) {
-    return res.status(401).json({ error: 'Autenticazione richiesta.' });
+    return res.status(401).json({ errore: 'Utente non autenticato' });
   }
   req.user = user;
   next();
@@ -55,7 +57,7 @@ function adminRequired(req, res, next) {
   const email = (req.user?.email || '').toLowerCase();
   if (ruolo !== 'admin' && !email.includes('admin')) {
     return res.status(403).json({
-      error: 'Accesso riservato agli amministratori.'
+      errore: 'Accesso riservato agli amministratori.'
     });
   }
   next();
@@ -117,18 +119,20 @@ app.get('/api/health', asyncRoute(async (_req, res) => {
 // --------------------------------------------------
 // AUTENTICAZIONE E REGISTRAZIONE
 // --------------------------------------------------
+
+// POST /api/auth/register — Registrazione nuovo utente
 app.post('/api/auth/register', asyncRoute(async (req, res) => {
   const { nome, cognome, email, password } = req.body || {};
 
   if (!nome?.trim() || !cognome?.trim() || !email?.trim() || typeof password !== 'string') {
     return res.status(400).json({
-      error: 'Nome, cognome, email e password sono campi obbligatori.'
+      errore: 'Nome, cognome, email e password sono campi obbligatori.'
     });
   }
 
   if (password.length < 8) {
     return res.status(400).json({
-      error: 'La password deve contenere almeno 8 caratteri.'
+      errore: 'La password deve contenere almeno 8 caratteri.'
     });
   }
 
@@ -163,7 +167,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
     );
 
     res.status(201).json({
-      messaggio: 'Registrazione completata con successo!',
+      messaggio: 'Registrazione completata',
       token,
       utente: {
         id: user.id,
@@ -176,7 +180,7 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   } catch (error) {
     if (error.code === '23505') {
       return res.status(409).json({
-        error: 'Esiste già un account registrato con questa email.'
+        errore: 'Esiste già un account registrato con questa email.'
       });
     }
     console.error('Errore registrazione:', error);
@@ -184,12 +188,13 @@ app.post('/api/auth/register', asyncRoute(async (req, res) => {
   }
 }));
 
+// POST /api/auth/login — Login utente
 app.post('/api/auth/login', asyncRoute(async (req, res) => {
   const { email, password } = req.body || {};
 
   if (!email || !password) {
     return res.status(400).json({
-      error: 'Inserisci sia l\'email che la password.'
+      errore: 'Inserisci sia l\'email che la password.'
     });
   }
 
@@ -203,7 +208,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
 
   if (!rows.length || !(await bcrypt.compare(password, rows[0].password))) {
     return res.status(401).json({
-      error: 'Email o password non corretti.'
+      errore: 'Utente non autenticato'
     });
   }
 
@@ -219,7 +224,7 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   );
 
   res.json({
-    messaggio: 'Login effettuato con successo',
+    messaggio: 'Login effettuato',
     token,
     utente: {
       id: user.id,
@@ -231,96 +236,42 @@ app.post('/api/auth/login', asyncRoute(async (req, res) => {
   });
 }));
 
+// POST /api/auth/logout — Logout
 app.post('/api/auth/logout', (_req, res) => {
   res.json({ messaggio: 'Logout effettuato' });
 });
 
-// Profilo Utente
-app.get(['/api/utenti/me', '/api/v1/users/me'], authRequired, asyncRoute(async (req, res) => {
-  const { rows } = await pool.query(
-    `SELECT id, nome, cognome, email, ruolo
-     FROM utente
-     WHERE id = $1`,
-    [req.user.id]
-  );
-
-  if (!rows.length) {
-    return res.status(404).json({ error: 'Utente non trovato.' });
-  }
-
-  res.json({ utente: rows[0], ...rows[0] });
-}));
-
 // --------------------------------------------------
-// TORNEI PUBBLICI
-// --------------------------------------------------
-app.get(['/api/tornei', '/api/v1/tournaments'], asyncRoute(async (req, res) => {
-  const stato = req.query.stato;
-
-  let sql = `
-    SELECT t.*,
-      COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
-      COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
-    FROM torneo t
-  `;
-  const params = [];
-
-  if (stato) {
-    sql += ' WHERE t.stato = $1';
-    params.push(stato);
-  }
-
-  sql += ' ORDER BY t.data_inizio ASC, t.id DESC';
-
-  const { rows } = await pool.query(sql, params);
-  res.json(rows.map(torneoCompatibile));
-}));
-
-app.get(['/api/tornei/in-evidenza', '/api/v1/tournaments/featured'], asyncRoute(async (_req, res) => {
-  const { rows } = await pool.query(`
-    SELECT t.*,
-      COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
-      COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
-    FROM torneo t
-    WHERE t.stato = 'Aperto'
-    ORDER BY t.data_inizio ASC
-    LIMIT 3
-  `);
-  res.json(rows.map(torneoCompatibile));
-}));
-
-app.get(['/api/tornei/categorie', '/api/v1/tournaments/categories'], asyncRoute(async (_req, res) => {
-  const { rows } = await pool.query("SELECT DISTINCT gioco AS nome FROM torneo WHERE gioco IS NOT NULL AND gioco != '' ORDER BY gioco");
-  res.json(rows.map((r, i) => ({ id: i + 1, nome: r.nome })));
-}));
-
-app.get(['/api/tornei/:id', '/api/v1/tournaments/:id'], asyncRoute(async (req, res) => {
-  const { rows } = await pool.query(
-    `SELECT t.*,
-       COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
-       COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
-     FROM torneo t WHERE t.id = $1`,
-    [req.params.id]
-  );
-
-  if (!rows.length) {
-    return res.status(404).json({ error: 'Torneo non trovato.' });
-  }
-
-  res.json(torneoCompatibile(rows[0]));
-}));
-
-// --------------------------------------------------
-// ISCRIZIONI
+// PROFILO UTENTE
 // --------------------------------------------------
 
-// Recupero iscrizioni per utente (chiamato da AuthService.caricaIscrizioni)
+// GET /api/v1/users/me — Profilo utente corrente (doc: Recupera nome, cognome ed email)
 app.get(
-  ['/api/utenti/:id/iscrizioni', '/api/v1/users/:id/tournaments'],
+  ['/api/utenti/me', '/api/v1/users/me'],
+  authRequired,
   asyncRoute(async (req, res) => {
-    const userId = req.params.id === 'me' ? extractUserFromToken(req)?.id : req.params.id;
+    const { rows } = await pool.query(
+      `SELECT id, nome, cognome, email, ruolo
+       FROM utente
+       WHERE id = $1`,
+      [req.user.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ errore: 'Utente non trovato.' });
+    }
+
+    res.json({ utente: rows[0], ...rows[0] });
+  })
+);
+
+// GET /api/v1/users/me/tournaments — Tornei dell'utente (confermati e in attesa)
+app.get(
+  ['/api/utenti/:id/iscrizioni', '/api/v1/users/me/tournaments', '/api/v1/users/:id/tournaments'],
+  asyncRoute(async (req, res) => {
+    const userId = (req.params.id === 'me') ? extractUserFromToken(req)?.id : req.params.id;
     if (!userId) {
-      return res.status(400).json({ error: 'ID utente non specificato.' });
+      return res.status(400).json({ errore: 'ID utente non specificato.' });
     }
 
     const { rows } = await pool.query(
@@ -365,77 +316,175 @@ app.get(
   })
 );
 
-// Iscrizione a un torneo (chiamato da AuthService.iscriviAlTorneo)
+// --------------------------------------------------
+// TORNEI PUBBLICI
+// --------------------------------------------------
+
+// GET /api/v1/tournaments — Elenco completo tornei (pubblico)
+app.get(
+  ['/api/tornei', '/api/v1/tournaments'],
+  asyncRoute(async (req, res) => {
+    const stato = req.query.stato;
+
+    let sql = `
+      SELECT t.*,
+        COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
+        COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
+      FROM torneo t
+    `;
+    const params = [];
+
+    if (stato) {
+      sql += ' WHERE t.stato = $1';
+      params.push(stato);
+    }
+
+    sql += ' ORDER BY t.data_inizio ASC, t.id DESC';
+
+    const { rows } = await pool.query(sql, params);
+    res.json(rows.map(torneoCompatibile));
+  })
+);
+
+// GET /api/tornei/in-evidenza — Tornei in evidenza per homepage
+app.get(
+  ['/api/tornei/in-evidenza', '/api/v1/tournaments/featured'],
+  asyncRoute(async (_req, res) => {
+    const { rows } = await pool.query(`
+      SELECT t.*,
+        COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
+        COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
+      FROM torneo t
+      WHERE t.stato = 'Aperto'
+      ORDER BY t.data_inizio ASC
+      LIMIT 3
+    `);
+    res.json(rows.map(torneoCompatibile));
+  })
+);
+
+// GET /api/v1/tournaments/categories — Categorie tornei
+app.get(
+  ['/api/tornei/categorie', '/api/v1/tournaments/categories'],
+  asyncRoute(async (_req, res) => {
+    const { rows } = await pool.query("SELECT DISTINCT gioco AS nome FROM torneo WHERE gioco IS NOT NULL AND gioco != '' ORDER BY gioco");
+    res.json(rows.map((r, i) => ({ id: i + 1, nome: r.nome })));
+  })
+);
+
+// GET /api/v1/tournaments/:id — Dettaglio singolo torneo
+app.get(
+  ['/api/tornei/:id', '/api/v1/tournaments/:id'],
+  asyncRoute(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT t.*,
+         COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'Confermata'), 0) AS posti_occupati,
+         COALESCE((SELECT COUNT(*)::int FROM iscrizione i WHERE i.torneo_id = t.id AND i.stato = 'In_Attesa'), 0) AS in_coda
+       FROM torneo t WHERE t.id = $1`,
+      [req.params.id]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ errore: 'Torneo non trovato.' });
+    }
+
+    res.json(torneoCompatibile(rows[0]));
+  })
+);
+
+// --------------------------------------------------
+// ISCRIZIONI
+// --------------------------------------------------
+
+// POST /api/iscrizioni o /api/v1/tournaments/:id/enroll — Iscrizione a torneo
 app.post(
   ['/api/iscrizioni', '/api/v1/enrollments'],
   asyncRoute(async (req, res) => {
     const userFromToken = extractUserFromToken(req);
-    const utenteId = req.body?.utente_id || userFromToken?.id;
-    const torneoId = req.body?.torneo_id;
+    const utente_id = req.body?.utente_id || userFromToken?.id;
+    const torneo_id = req.body?.torneo_id;
 
-    if (!utenteId || !torneoId) {
-      return res.status(400).json({ error: 'ID utente e ID torneo sono obbligatori.' });
+    if (!utente_id || !torneo_id) {
+      return res.status(400).json({ errore: 'ID utente e ID torneo sono obbligatori.' });
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      const torneoRes = await client.query('SELECT * FROM torneo WHERE id = $1 FOR UPDATE', [torneoId]);
+      const torneoRes = await client.query('SELECT * FROM torneo WHERE id = $1 FOR UPDATE', [torneo_id]);
       if (!torneoRes.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Torneo non trovato.' });
+        return res.status(404).json({ errore: 'Torneo non trovato.' });
       }
 
       const torneo = torneoRes.rows[0];
       if (torneo.stato !== 'Aperto') {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Le iscrizioni a questo torneo non sono aperte.' });
+        return res.status(409).json({ errore: 'Le iscrizioni a questo torneo sono chiuse' });
       }
 
       // Verifica se già iscritto
       const duplicato = await client.query(
         'SELECT id, stato FROM iscrizione WHERE utente_id = $1 AND torneo_id = $2',
-        [utenteId, torneoId]
+        [utente_id, torneo_id]
       );
 
       if (duplicato.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'Sei già iscritto a questo torneo.' });
+        return res.status(409).json({ errore: 'Sei già iscritto a questo torneo' });
       }
 
       // Conteggio confermati
       const countRes = await client.query(
         "SELECT COUNT(*)::int AS tot FROM iscrizione WHERE torneo_id = $1 AND stato = 'Confermata'",
-        [torneoId]
+        [torneo_id]
       );
       const iscrittiConfermati = countRes.rows[0].tot;
 
       let statoFinale = 'Confermata';
-      let posizioneCoda = undefined;
+      let posizione_coda = undefined;
 
       if (iscrittiConfermati >= torneo.posti_max || req.body?.stato === 'In_Attesa') {
         statoFinale = 'In_Attesa';
         const waitlistCount = await client.query(
           "SELECT COUNT(*)::int AS wait_tot FROM iscrizione WHERE torneo_id = $1 AND stato = 'In_Attesa'",
-          [torneoId]
+          [torneo_id]
         );
-        posizioneCoda = waitlistCount.rows[0].wait_tot + 1;
+        posizione_coda = waitlistCount.rows[0].wait_tot + 1;
       }
 
       const insertRes = await client.query(
         `INSERT INTO iscrizione (utente_id, torneo_id, stato)
          VALUES ($1, $2, $3)
          RETURNING id, utente_id, torneo_id, stato, data_iscrizione`,
-        [utenteId, torneoId, statoFinale]
+        [utente_id, torneo_id, statoFinale]
       );
 
       await client.query('COMMIT');
 
       const nuovaIscrizione = insertRes.rows[0];
+      if (statoFinale === 'In_Attesa') {
+        return res.status(201).json({
+          messaggio: "Inserimento nella lista d'attesa completato",
+          iscrizione: {
+            id: nuovaIscrizione.id,
+            torneo_id: nuovaIscrizione.torneo_id,
+            stato: nuovaIscrizione.stato,
+            data_iscrizione: nuovaIscrizione.data_iscrizione,
+            posizione_coda
+          }
+        });
+      }
+
       res.status(201).json({
-        ...nuovaIscrizione,
-        posizione_coda: posizioneCoda
+        messaggio: 'Iscrizione effettuata',
+        iscrizione: {
+          id: nuovaIscrizione.id,
+          torneo_id: nuovaIscrizione.torneo_id,
+          stato: nuovaIscrizione.stato,
+          data_iscrizione: nuovaIscrizione.data_iscrizione
+        }
       });
     } catch (err) {
       await client.query('ROLLBACK');
@@ -446,55 +495,76 @@ app.post(
   })
 );
 
-// Iscrizione via endpoint torneo (alias retrocompatibile)
+// POST /api/v1/tournaments/:id/enroll — Alias endpoint iscrizione
 app.post(
   ['/api/tornei/:id/iscrizioni', '/api/v1/tournaments/:id/enroll'],
   asyncRoute(async (req, res) => {
-    req.body.torneo_id = req.params.id;
+    const torneo_id = req.params.id;
     const userFromToken = extractUserFromToken(req);
-    if (!req.body.utente_id && userFromToken) {
-      req.body.utente_id = userFromToken.id;
-    }
-    // Riutilizza logica POST /api/iscrizioni
-    const utenteId = req.body?.utente_id;
-    const torneoId = req.params.id;
+    const utente_id = req.body?.utente_id || userFromToken?.id;
 
-    if (!utenteId) {
-      return res.status(401).json({ error: 'Autenticazione richiesta.' });
+    if (!utente_id) {
+      return res.status(401).json({ errore: 'Utente non autenticato' });
     }
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const torneoRes = await client.query('SELECT * FROM torneo WHERE id = $1 FOR UPDATE', [torneoId]);
+      const torneoRes = await client.query('SELECT * FROM torneo WHERE id = $1 FOR UPDATE', [torneo_id]);
       if (!torneoRes.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Torneo non trovato.' });
+        return res.status(404).json({ errore: 'Torneo non trovato.' });
+      }
+
+      const torneo = torneoRes.rows[0];
+      if (torneo.stato !== 'Aperto') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ errore: 'Le iscrizioni a questo torneo sono chiuse' });
       }
 
       const duplicato = await client.query(
         'SELECT id FROM iscrizione WHERE utente_id = $1 AND torneo_id = $2',
-        [utenteId, torneoId]
+        [utente_id, torneo_id]
       );
       if (duplicato.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(409).json({ error: 'Sei già iscritto a questo torneo.' });
+        return res.status(409).json({ errore: 'Sei già iscritto a questo torneo' });
       }
 
       const countRes = await client.query(
         "SELECT COUNT(*)::int AS tot FROM iscrizione WHERE torneo_id = $1 AND stato = 'Confermata'",
-        [torneoId]
+        [torneo_id]
       );
-      const stato = countRes.rows[0].tot < torneoRes.rows[0].posti_max ? 'Confermata' : 'In_Attesa';
+      const statoFinale = countRes.rows[0].tot < torneo.posti_max ? 'Confermata' : 'In_Attesa';
+
+      let posizione_coda = undefined;
+      if (statoFinale === 'In_Attesa') {
+        const wRes = await client.query(
+          "SELECT COUNT(*)::int AS wait_tot FROM iscrizione WHERE torneo_id = $1 AND stato = 'In_Attesa'",
+          [torneo_id]
+        );
+        posizione_coda = wRes.rows[0].wait_tot + 1;
+      }
 
       const insertRes = await client.query(
         `INSERT INTO iscrizione (utente_id, torneo_id, stato)
          VALUES ($1, $2, $3)
-         RETURNING *`,
-        [utenteId, torneoId, stato]
+         RETURNING id, utente_id, torneo_id, stato, data_iscrizione`,
+        [utente_id, torneo_id, statoFinale]
       );
       await client.query('COMMIT');
-      res.status(201).json(insertRes.rows[0]);
+
+      const iscr = insertRes.rows[0];
+      if (statoFinale === 'In_Attesa') {
+        return res.status(201).json({
+          messaggio: "Inserimento nella lista d'attesa completato",
+          iscrizione: { ...iscr, posizione_coda }
+        });
+      }
+      res.status(201).json({
+        messaggio: 'Iscrizione effettuata',
+        iscrizione: iscr
+      });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
@@ -504,33 +574,32 @@ app.post(
   })
 );
 
-// Annulla iscrizione (chiamato da AuthService.annullaIscrizione con query params ?utenteId=...&torneoId=...)
+// DELETE /api/iscrizioni — Annulla iscrizione
 app.delete(
   ['/api/iscrizioni', '/api/v1/enrollments'],
   asyncRoute(async (req, res) => {
     const userFromToken = extractUserFromToken(req);
-    const utenteId = req.query.utenteId || req.query.utente_id || req.body?.utente_id || userFromToken?.id;
-    const torneoId = req.query.torneoId || req.query.torneo_id || req.body?.torneo_id;
+    const utente_id = req.query.utenteId || req.query.utente_id || req.body?.utente_id || userFromToken?.id;
+    const torneo_id = req.query.torneoId || req.query.torneo_id || req.body?.torneo_id;
 
-    if (!utenteId || !torneoId) {
-      return res.status(400).json({ error: 'utenteId e torneoId sono necessari per cancellare l\'iscrizione.' });
+    if (!utente_id || !torneo_id) {
+      return res.status(400).json({ errore: 'utenteId e torneoId sono necessari per cancellare l\'iscrizione.' });
     }
 
     const { rows } = await pool.query(
       'DELETE FROM iscrizione WHERE utente_id = $1 AND torneo_id = $2 RETURNING id, stato',
-      [utenteId, torneoId]
+      [utente_id, torneo_id]
     );
 
     if (!rows.length) {
-      return res.status(404).json({ error: 'Iscrizione non trovata.' });
+      return res.status(404).json({ errore: 'Iscrizione non trovata.' });
     }
 
-    // NOTA: NON promuoviamo automaticamente. L'admin gestisce manualmente la lista d'attesa.
-    res.json({ message: 'Iscrizione annullata con successo.' });
+    res.json({ messaggio: 'Iscrizione annullata con successo', message: 'Iscrizione annullata con successo.' });
   })
 );
 
-// Annulla iscrizione via /api/tornei/:id/iscrizioni/me
+// DELETE /api/v1/tournaments/:id/enroll — Annulla iscrizione via torneo
 app.delete(
   ['/api/tornei/:id/iscrizioni/me', '/api/v1/tournaments/:id/enroll'],
   authRequired,
@@ -541,19 +610,18 @@ app.delete(
     );
 
     if (!rows.length) {
-      return res.status(404).json({ error: 'Iscrizione non trovata.' });
+      return res.status(404).json({ errore: 'Iscrizione non trovata.' });
     }
 
-    // NOTA: NON promuoviamo automaticamente. L'admin gestisce manualmente la lista d'attesa.
-    res.json({ message: 'Iscrizione annullata con successo.' });
+    res.json({ messaggio: 'Iscrizione annullata con successo', message: 'Iscrizione annullata con successo.' });
   })
 );
 
 // --------------------------------------------------
-// RISULTATI E PUNTEGGI (CHIAMATO DA AuthService e Dashboard)
+// RISULTATI E PUNTEGGI
 // --------------------------------------------------
 
-// Lettura risultati complessivi (usato da AuthService.caricaRisultati e visualizzato in UserArea)
+// GET /api/risultati — Tutti i risultati
 app.get(
   ['/api/risultati', '/api/v1/results'],
   asyncRoute(async (_req, res) => {
@@ -578,14 +646,14 @@ app.get(
   })
 );
 
-// Aggiunta/Modifica manuale risultato (usato da AuthService.aggiungiRisultato)
+// POST /api/risultati — Aggiunta risultato
 app.post(
   ['/api/risultati', '/api/v1/results'],
   asyncRoute(async (req, res) => {
     const { torneo_id, utente_id, punti = 0, posizione = 1, vittorie = 0, sconfitte = 0 } = req.body || {};
 
     if (!torneo_id || !utente_id) {
-      return res.status(400).json({ error: 'torneo_id e utente_id sono obbligatori.' });
+      return res.status(400).json({ errore: 'torneo_id e utente_id sono obbligatori.' });
     }
 
     const { rows } = await pool.query(
@@ -594,7 +662,7 @@ app.post(
        ON CONFLICT (utente_id, torneo_id)
        DO UPDATE SET punti = EXCLUDED.punti, posizione = EXCLUDED.posizione, vittorie = EXCLUDED.vittorie, sconfitte = EXCLUDED.sconfitte
        RETURNING *`,
-      [torneoId(torneo_id), Number(utente_id), Number(punti), Number(posizione), Number(vittorie), Number(sconfitte)]
+      [Number(torneo_id), Number(utente_id), Number(punti), Number(posizione), Number(vittorie), Number(sconfitte)]
     );
 
     // Recupera con JOIN per il formato completo
@@ -620,11 +688,7 @@ app.post(
   })
 );
 
-function torneoId(val) {
-  return Number(val);
-}
-
-// Risultati di un singolo torneo
+// GET /api/v1/tournaments/:id/results — Risultati singolo torneo
 app.get(
   ['/api/tornei/:id/risultati', '/api/v1/tournaments/:id/results'],
   asyncRoute(async (req, res) => {
@@ -651,7 +715,7 @@ app.get(
 );
 
 // --------------------------------------------------
-// DASHBOARD AMMINISTRATORE (ADMIN)
+// DASHBOARD AMMINISTRATORE
 // --------------------------------------------------
 
 // 1. Lista tornei per admin
@@ -671,7 +735,7 @@ app.get(
   })
 );
 
-// 2. Lista studenti / utenti per admin (usato dal menu a tendina dell'admin per i punteggi)
+// 2. Lista studenti / utenti per admin
 app.get(
   ['/api/admin/utenti', '/api/admin/studenti'],
   authRequired,
@@ -692,7 +756,7 @@ app.get(
   })
 );
 
-// 3. Creazione torneo da dashboard
+// 3. Creazione torneo (POST /api/v1/tournaments)
 app.post(
   ['/api/admin/tornei', '/api/v1/tournaments'],
   authRequired,
@@ -718,13 +782,13 @@ app.post(
 
     if (!nomeTorneo || !giocoTorneo || !data_inizio || !data_fine) {
       return res.status(400).json({
-        error: 'Nome, gioco, data di inizio e data di fine sono obbligatori.'
+        errore: 'Nome, gioco, data di inizio e data di fine sono obbligatori.'
       });
     }
 
     if (posti < 1) {
       return res.status(400).json({
-        error: 'Il numero di posti deve essere almeno 1.'
+        errore: 'Il numero di posti deve essere almeno 1.'
       });
     }
 
@@ -746,17 +810,21 @@ app.post(
       ]
     );
 
-    res.status(201).json(torneoCompatibile(rows[0]));
+    res.status(201).json({
+      messaggio: 'Torneo creato con successo',
+      id: rows[0].id,
+      ...torneoCompatibile(rows[0])
+    });
   })
 );
 
-// 4. Modifica torneo da dashboard (supporta parametri opzionali e preserva stato se non inviato)
+// 4. Modifica torneo (PUT /api/v1/tournaments/:id)
 app.put(
   ['/api/admin/tornei/:id', '/api/v1/tournaments/:id'],
   authRequired,
   adminRequired,
   asyncRoute(async (req, res) => {
-    const torneoId = req.params.id;
+    const idTorneo = req.params.id;
     const {
       nome,
       titolo,
@@ -771,9 +839,9 @@ app.put(
       immagine
     } = req.body || {};
 
-    const existingRes = await pool.query('SELECT * FROM torneo WHERE id = $1', [torneoId]);
+    const existingRes = await pool.query('SELECT * FROM torneo WHERE id = $1', [idTorneo]);
     if (!existingRes.rows.length) {
-      return res.status(404).json({ error: 'Torneo non trovato.' });
+      return res.status(404).json({ errore: 'Torneo non trovato.' });
     }
     const current = existingRes.rows[0];
 
@@ -810,40 +878,48 @@ app.put(
         nuovaDataFine,
         nuovaModalita,
         nuovaImmagine,
-        torneoId
+        idTorneo
       ]
     );
 
-    res.json(torneoCompatibile(rows[0]));
+    res.json({
+      messaggio: 'Torneo aggiornato correttamente',
+      torneo: {
+        id: rows[0].id,
+        nome: rows[0].nome,
+        posti_max: rows[0].posti_max,
+        ...torneoCompatibile(rows[0])
+      }
+    });
   })
 );
 
-// 5. Eliminazione torneo da dashboard (elimina a cascata iscrizioni e risultati per consentire la cancellazione pulita)
+// 5. Eliminazione torneo (DELETE /api/v1/tournaments/:id)
 app.delete(
   ['/api/admin/tornei/:id', '/api/v1/tournaments/:id'],
   authRequired,
   adminRequired,
   asyncRoute(async (req, res) => {
-    const torneoId = req.params.id;
+    const idTorneo = req.params.id;
 
     // Cancella a cascata per garantire successo
-    await pool.query('DELETE FROM iscrizione WHERE torneo_id = $1', [torneoId]);
-    await pool.query('DELETE FROM risultato WHERE torneo_id = $1', [torneoId]);
+    await pool.query('DELETE FROM iscrizione WHERE torneo_id = $1', [idTorneo]);
+    await pool.query('DELETE FROM risultato WHERE torneo_id = $1', [idTorneo]);
 
     const { rows } = await pool.query(
       'DELETE FROM torneo WHERE id = $1 RETURNING id',
-      [torneoId]
+      [idTorneo]
     );
 
     if (!rows.length) {
-      return res.status(404).json({ error: 'Torneo non trovato.' });
+      return res.status(404).json({ errore: 'Torneo non trovato.' });
     }
 
-    res.json({ message: 'Torneo eliminato definitivamente con successo.' });
+    res.json({ messaggio: 'Torneo eliminato con successo', message: 'Torneo eliminato definitivamente con successo.' });
   })
 );
 
-// 6. Inserimento e aggiornamento punteggi da dashboard
+// 6. Inserimento/Aggiornamento punteggi (PUT /api/v1/tournaments/:id/results/:userId)
 app.put(
   [
     '/api/admin/tornei/:id/risultati/:userId',
@@ -853,7 +929,7 @@ app.put(
   authRequired,
   adminRequired,
   asyncRoute(async (req, res) => {
-    const { id: torneoId, userId } = req.params;
+    const { id: idTorneo, userId } = req.params;
     const {
       punti = 0,
       posizione = 1,
@@ -871,17 +947,17 @@ app.put(
          vittorie = EXCLUDED.vittorie,
          sconfitte = EXCLUDED.sconfitte
        RETURNING *`,
-      [Number(torneoId), Number(userId), Number(punti), Number(posizione), Number(vittorie), Number(sconfitte)]
+      [Number(idTorneo), Number(userId), Number(punti), Number(posizione), Number(vittorie), Number(sconfitte)]
     );
 
     res.json({
-      messaggio: 'Risultato salvato con successo',
+      messaggio: 'Risultato aggiornato con successo',
       risultato: rows[0]
     });
   })
 );
 
-// 7. Lista iscrizioni torneo per admin
+// 7. Elenco iscritti per admin (GET /api/v1/tournaments/:id/enrollments)
 app.get(
   ['/api/admin/tornei/:id/iscrizioni', '/api/v1/tournaments/:id/enrollments'],
   authRequired,
@@ -908,11 +984,72 @@ app.get(
          i.data_iscrizione ASC`,
       [req.params.id]
     );
-    res.json(rows);
+    res.json({ torneo_id: Number(req.params.id), iscritti: rows });
   })
 );
 
-// 8. Lista studenti in lista d'attesa (coda) — con posizione e posti disponibili
+// 8. Lista d'attesa per torneo specifico (GET /api/v1/tournaments/:id/waitlist)
+// Risposta conforme al documento: { torneo_id, lista_attesa: [{utente_id, nome_utente, data_iscrizione, stato}] }
+app.get(
+  ['/api/tornei/:id/lista-attesa', '/api/v1/tournaments/:id/waitlist'],
+  authRequired,
+  adminRequired,
+  asyncRoute(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT
+         i.id AS iscrizione_id,
+         i.stato,
+         i.data_iscrizione,
+         u.id AS utente_id,
+         CONCAT(u.nome, ' ', u.cognome) AS nome_utente,
+         u.nome,
+         u.cognome,
+         u.email,
+         t.id AS torneo_id,
+         t.nome AS torneo_nome,
+         t.posti_max,
+         t.stato AS stato_torneo,
+         COALESCE(
+           (SELECT COUNT(*)::int FROM iscrizione i2
+            WHERE i2.torneo_id = i.torneo_id AND i2.stato = 'Confermata'),
+           0
+         ) AS posti_occupati,
+         (
+           SELECT COUNT(*)::int FROM iscrizione i3
+           WHERE i3.torneo_id = i.torneo_id
+             AND i3.stato     = 'In_Attesa'
+             AND i3.data_iscrizione <= i.data_iscrizione
+         ) AS posizione_coda
+       FROM iscrizione i
+       JOIN utente u ON u.id = i.utente_id
+       JOIN torneo  t ON t.id = i.torneo_id
+       WHERE i.torneo_id = $1 AND i.stato = 'In_Attesa'
+       ORDER BY i.data_iscrizione ASC`,
+      [req.params.id]
+    );
+
+    res.json({
+      torneo_id: Number(req.params.id),
+      lista_attesa: rows.map(r => ({
+        iscrizione_id: r.iscrizione_id,
+        utente_id: r.utente_id,
+        nome_utente: r.nome_utente,
+        nome: r.nome,
+        cognome: r.cognome,
+        email: r.email,
+        data_iscrizione: r.data_iscrizione,
+        stato: r.stato,
+        posizione_coda: Number(r.posizione_coda) || 1,
+        torneo_nome: r.torneo_nome,
+        posti_max: Number(r.posti_max),
+        posti_occupati: Number(r.posti_occupati),
+        posti_disponibili: Math.max(0, Number(r.posti_max) - Number(r.posti_occupati))
+      }))
+    });
+  })
+);
+
+// 9. Lista d'attesa globale per dashboard admin (GET /api/admin/coda)
 app.get(
   '/api/admin/coda',
   authRequired,
@@ -927,6 +1064,7 @@ app.get(
         u.nome,
         u.cognome,
         u.email,
+        CONCAT(u.nome, ' ', u.cognome) AS nome_utente,
         t.id   AS torneo_id,
         t.nome AS torneo_nome,
         t.posti_max,
@@ -951,27 +1089,49 @@ app.get(
 
     res.json(rows.map(r => ({
       ...r,
+      posizione_coda: Number(r.posizione_coda) || 1,
       posti_disponibili: Math.max(0, Number(r.posti_max) - Number(r.posti_occupati))
     })));
   })
 );
 
-// 9. Approva uno studente dalla lista d'attesa (promuove a Confermata e incrementa posti_max di 1)
+// 10. Approva studente dalla lista d'attesa — incrementa posti_max del torneo di 1
+// Endpoint doc: POST /api/v1/tournaments/:id/waitlist/:userId/approve
+// Endpoint legacy: POST /api/admin/iscrizioni/:id/approva
 app.post(
-  '/api/admin/iscrizioni/:id/approva',
+  [
+    '/api/admin/iscrizioni/:id/approva',
+    '/api/v1/tournaments/:torneoId/waitlist/:userId/approve'
+  ],
   authRequired,
   adminRequired,
   asyncRoute(async (req, res) => {
+    // Supporta sia l'id iscrizione diretto (legacy) sia torneo+utente (nuovo)
+    const iscrizioneId = req.params.id;
+    const { torneoId, userId } = req.params;
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      const iscrRes = await client.query(
-        "SELECT * FROM iscrizione WHERE id = $1 AND stato = 'In_Attesa' FOR UPDATE",
-        [req.params.id]
-      );
+
+      let iscrRes;
+      if (iscrizioneId) {
+        // Legacy: cerca per id iscrizione
+        iscrRes = await client.query(
+          "SELECT * FROM iscrizione WHERE id = $1 AND stato = 'In_Attesa' FOR UPDATE",
+          [iscrizioneId]
+        );
+      } else {
+        // Nuovo: cerca per torneo_id + utente_id
+        iscrRes = await client.query(
+          "SELECT * FROM iscrizione WHERE torneo_id = $1 AND utente_id = $2 AND stato = 'In_Attesa' FOR UPDATE",
+          [torneoId, userId]
+        );
+      }
+
       if (!iscrRes.rows.length) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Iscrizione in attesa non trovata o già confermata.' });
+        return res.status(404).json({ errore: 'Iscrizione in attesa non trovata o già confermata.' });
       }
       const iscr = iscrRes.rows[0];
 
@@ -981,7 +1141,8 @@ app.post(
         [iscr.id]
       );
 
-      // Incrementa automaticamente posti_max del torneo di 1 (es. da 5 a 6)
+      // Incrementa posti_max del torneo di 1 (es. da 35 a 36)
+      // NON modifica il limite di iscrizioni per utente
       await client.query(
         "UPDATE torneo SET posti_max = posti_max + 1 WHERE id = $1",
         [iscr.torneo_id]
@@ -989,7 +1150,7 @@ app.post(
 
       await client.query('COMMIT');
       res.json({
-        messaggio: 'Iscrizione approvata con successo e posti del torneo aggiornati.',
+        messaggio: 'Iscrizione utente approvata con successo',
         iscrizione: updatedIscr.rows[0]
       });
     } catch (err) {
@@ -1001,7 +1162,7 @@ app.post(
   })
 );
 
-// 10. Rifiuta / rimuovi uno studente dalla lista d'attesa
+// 11. Rifiuta / rimuovi studente dalla lista d'attesa
 app.delete(
   '/api/admin/iscrizioni/:id',
   authRequired,
@@ -1012,13 +1173,13 @@ app.delete(
       [req.params.id]
     );
     if (!rows.length) {
-      return res.status(404).json({ error: 'Iscrizione non trovata.' });
+      return res.status(404).json({ errore: 'Iscrizione non trovata.' });
     }
-    res.json({ message: 'Iscrizione rimossa con successo.' });
+    res.json({ messaggio: 'Iscrizione rimossa con successo.' });
   })
 );
 
-
+// FAQ
 app.get('/api/faq', asyncRoute(async (_req, res) => {
   const { rows } = await pool.query('SELECT id, domanda, risposta FROM faq ORDER BY id');
   res.json(rows);
@@ -1029,7 +1190,7 @@ app.get('/api/faq', asyncRoute(async (_req, res) => {
 // --------------------------------------------------
 app.use((req, res) => {
   res.status(404).json({
-    error: `Endpoint non trovato: ${req.method} ${req.path}`
+    errore: `Endpoint non trovato: ${req.method} ${req.path}`
   });
 });
 
@@ -1037,15 +1198,15 @@ app.use((error, _req, res, _next) => {
   console.error('Server error:', error);
 
   if (error.code === '23503') {
-    return res.status(400).json({ error: 'Riferimento a un record inesistente nel database.' });
+    return res.status(400).json({ errore: 'Riferimento a un record inesistente nel database.' });
   }
 
   if (error.code === '23505') {
-    return res.status(409).json({ error: 'Il dato è già presente o viola un vincolo di unicità.' });
+    return res.status(409).json({ errore: 'Il dato è già presente o viola un vincolo di unicità.' });
   }
 
   res.status(500).json({
-    error: error.message || 'Errore interno del server.'
+    errore: error.message || 'Errore interno del server.'
   });
 });
 

@@ -11,14 +11,14 @@ const { Pool, types } = pg;
 
 // FIX TIMEZONE: I campi DATE di PostgreSQL vengono restituiti come stringhe "YYYY-MM-DD"
 // senza conversione in oggetti Date JavaScript (che causerebbero -1 giorno per UTC+2)
-types.setTypeParser(types.builtins.DATE, (val) => val); // restituisce stringa grezza
+types.setTypeParser(types.builtins.DATE, (val) => val);
 
 export const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
   port: Number(process.env.PGPORT || 5432),
-  database: process.env.PGDATABASE || 'progettoexprivia',
+  database: process.env.PGDATABASE || 'ProgettoExprivia',
   user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD,
+  password: String(process.env.PGPASSWORD || 'admin'),
 });
 
 pool.on('error', (error) => {

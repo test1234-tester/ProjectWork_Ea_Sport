@@ -6,6 +6,7 @@ import { AuthService } from '../services/auth.service';
 import { TournamentService, Torneo } from '../services/tournament.service';
 import { environment } from '../../environments/environment';
 
+// Entità STUDENTE (dal documento analisi requisiti)
 export interface Studente {
   id: number;
   nome: string;
@@ -14,11 +15,13 @@ export interface Studente {
   nome_completo?: string;
 }
 
+// Entità STUDENTE IN CODA — lista d'attesa globale per la dashboard admin
 export interface StudenteInCoda {
   iscrizione_id: number;
   utente_id: number;
   nome: string;
   cognome: string;
+  nome_utente: string;
   email: string;
   torneo_id: number;
   torneo_nome: string;
@@ -27,15 +30,16 @@ export interface StudenteInCoda {
   posti_disponibili: number;
   posizione_coda: number;
   stato_torneo: string;
+  data_iscrizione: string;
 }
 
-/** Formatta "YYYY-MM-DD" → "YYYY-MM-DD" (valore già corretto per input[type=date]) */
+/** Formatta "YYYY-MM-DD" → "YYYY-MM-DD" (valore corretto per input[type=date]) */
 function toInputDate(val: string | null | undefined): string {
   if (!val) return '';
   return String(val).substring(0, 10);
 }
 
-/** Formatta la posizione in coda in italiano (es. 1° (Primo in coda)) */
+/** Formatta la posizione in coda in italiano (es. "1° (Primo in coda)") */
 function formattaPosizioneCoda(pos: number | null | undefined): string {
   const p = Number(pos) || 1;
   const nomi = [
@@ -202,7 +206,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
         <!-- 3. SEZIONE INSERIMENTO PUNTEGGI -->
         <section class="admin-card-section half-width">
           <div class="section-title-box">
-            <h2 class="section-title">Inserimento Punteggi & Risultati</h2>
+            <h2 class="section-title">Inserimento Punteggi &amp; Risultati</h2>
             <p class="section-subtitle">Assegna punteggi e risultati agli studenti partecipanti ai tornei.</p>
           </div>
 
@@ -245,7 +249,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
                 />
               </div>
 
-              <!-- Posizione -->
+              <!-- Posizione in classifica -->
               <div class="form-group">
                 <label for="scorePos">Posizione in classifica:</label>
                 <input
@@ -259,6 +263,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
                 />
               </div>
 
+              <!-- Bottone "Inserisci punteggio" (come da specifiche) -->
               <button type="submit" class="btn-primary full-btn" [disabled]="!datiPunteggio.torneo_id || !datiPunteggio.utente_id || salvataggioInCorso()">
                 {{ salvataggioInCorso() ? 'Salvataggio...' : 'Inserisci punteggio' }}
               </button>
@@ -268,12 +273,15 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
 
       </div>
 
-      <!-- 4. SEZIONE LISTA D'ATTESA (CODA) -->
-      <div class="admin-grid">
+      <!-- 4. SEZIONE STUDENTI IN LISTA D'ATTESA (CODA) -->
+      <div class="admin-grid" style="margin-top: 2rem;">
         <section class="admin-card-section full-width">
           <div class="section-title-box">
             <h2 class="section-title">Studenti in Lista d'Attesa 🟡</h2>
-            <p class="section-subtitle">Studenti in coda per tornei al completo. Puoi iscriverli direttamente (aumentando di 1 i posti del torneo) o rifiutare la richiesta.</p>
+            <p class="section-subtitle">
+              Studenti in coda per tornei al completo. Approva l'iscrizione (il numero massimo di iscritti al torneo aumenterà di 1)
+              oppure rifiuta la richiesta. Il limite di iscrizioni per utente rimane invariato.
+            </p>
           </div>
 
           @if (caricamentoCoda()) {
@@ -288,7 +296,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
               <table class="coda-table">
                 <thead>
                   <tr>
-                    <th>Studente</th>
+                    <th>Nome e Cognome</th>
                     <th>Email</th>
                     <th>Torneo</th>
                     <th>Posizione in coda</th>
@@ -305,15 +313,17 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
                         <span class="pos-badge">{{ formattaPosizioneCoda(s.posizione_coda) }}</span>
                       </td>
                       <td class="td-azioni">
+                        <!-- Bottone Approva Iscrizione (incrementa posti_max torneo di 1) -->
                         <button
                           type="button"
                           class="btn-approva"
                           [disabled]="azioneInCorso() === s.iscrizione_id"
                           (click)="approvaIscrizione(s)"
-                          title="Iscrivi al torneo"
+                          title="Approva iscrizione — il torneo avrà +1 posto"
                         >
-                          {{ azioneInCorso() === s.iscrizione_id ? 'Iscrizione...' : '✓ Iscrivi al torneo' }}
+                          {{ azioneInCorso() === s.iscrizione_id ? 'Iscrizione...' : '✓ Approva Iscrizione' }}
                         </button>
+                        <!-- Bottone Rifiuta -->
                         <button
                           type="button"
                           class="btn-rifiuta"
@@ -321,7 +331,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
                           (click)="rifiutaIscrizione(s)"
                           title="Rifiuta iscrizione"
                         >
-                          {{ azioneInCorso() === s.iscrizione_id ? '...' : '✕ Rifiuta iscrizione' }}
+                          {{ azioneInCorso() === s.iscrizione_id ? '...' : '✕ Rifiuta' }}
                         </button>
                       </td>
                     </tr>
@@ -384,7 +394,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
               </div>
 
               <div class="form-group">
-                <label for="createPosti">Posti massimi:</label>
+                <label for="createPosti">Posti massimi (posti_max):</label>
                 <input type="number" id="createPosti" name="createPosti" [(ngModel)]="moduloCreazione.posti_max" min="2" max="512" class="custom-input" />
               </div>
             </div>
@@ -450,7 +460,7 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
               </div>
 
               <div class="form-group">
-                <label for="editPosti">Posti massimi:</label>
+                <label for="editPosti">Posti massimi (posti_max):</label>
                 <input type="number" id="editPosti" name="editPosti" [(ngModel)]="moduloModifica.posti_max" min="2" max="512" class="custom-input" />
               </div>
             </div>
@@ -467,8 +477,9 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
             </div>
 
             <div class="modal-footer-btns">
+              <!-- Bottone "Modifica Torneo" come da specifiche -->
               <button type="submit" class="btn-primary" [disabled]="invioInCorso() || !formModifica.valid">
-                {{ invioInCorso() ? 'Salvataggio...' : 'Salva Torneo' }}
+                {{ invioInCorso() ? 'Salvataggio...' : 'Modifica Torneo' }}
               </button>
               <button type="button" class="btn-secondary" (click)="chiudiModal()">Annulla</button>
             </div>
@@ -511,15 +522,17 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
       </div>
     }
 
-    <!-- ===== MODAL 5: OPERAZIONE COMPLETATA (CREA, MODIFICA, ELIMINA, PUNTEGGIO) ===== -->
+    <!-- ===== MODAL 5: OPERAZIONE COMPLETATA — card di feedback successo ===== -->
+    <!-- Appare dopo: Crea Torneo, Modifica Torneo, Elimina Torneo, Inserisci Punteggio, Approva Iscrizione -->
     @if (modalAttivo() === 'modal_successo') {
       <div class="modal-backdrop" (click)="chiudiModal()">
-        <div class="confirm-dialog-card" (click)="$event.stopPropagation()">
+        <div class="confirm-dialog-card success-card" (click)="$event.stopPropagation()">
           <div class="dialog-icon-circle success-icon">✅</div>
           <h3 class="dialog-title">{{ titoloFeedbackSuccesso() }}</h3>
           <p class="dialog-text">{{ testoFeedbackSuccesso() }}</p>
 
-          <button type="button" class="btn-primary full-btn" (click)="chiudiModal()">
+          <!-- Bottone "Torna alla dashboard" come da specifiche -->
+          <button type="button" class="btn-torna-dashboard" (click)="chiudiModal()">
             Torna alla dashboard
           </button>
         </div>
@@ -604,10 +617,12 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
     .modal-footer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 0.5rem; }
     .modal-close-x { position: absolute; top: 1rem; right: 1.25rem; background: none; border: none; font-size: 1.75rem; cursor: pointer; color: #64748b; line-height: 1; }
 
+    /* DIALOG DI CONFERMA E SUCCESSO */
     .confirm-dialog-card {
       background-color: #ffffff; border-radius: 16px; padding: 2.25rem;
       max-width: 440px; width: 100%; text-align: center; margin: auto;
     }
+    .success-card { border: 2px solid #10b981; }
     .dialog-icon-circle { font-size: 2.5rem; margin-bottom: 0.5rem; }
     .success-icon { }
     .dialog-title { font-size: 1.4rem; font-weight: 800; color: #0f172a; margin: 0 0 0.5rem 0; }
@@ -617,6 +632,14 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
     .btn-confirm-danger { padding: 0.75rem; background-color: #ef4444; color: #ffffff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
     .btn-confirm-danger:disabled { background-color: #fca5a5; cursor: not-allowed; }
     .btn-confirm-no { padding: 0.75rem; background-color: #ffffff; color: #0f172a; border: 1.5px solid #0f172a; border-radius: 8px; font-weight: 700; cursor: pointer; }
+
+    /* Bottone "Torna alla dashboard" nella card di successo */
+    .btn-torna-dashboard {
+      width: 100%; padding: 0.85rem; background-color: #0f172a; color: #ffffff;
+      border: none; border-radius: 8px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: background-color 0.2s;
+    }
+    .btn-torna-dashboard:hover { background-color: #1e293b; }
 
     @media (max-width: 960px) {
       .cards-triple-grid { grid-template-columns: 1fr; }
@@ -642,9 +665,6 @@ function formattaPosizioneCoda(pos: number | null | undefined): string {
     .td-torneo { font-weight: 600; }
     .td-pos { text-align: center; }
     .pos-badge { display: inline-block; background: #eff6ff; color: #1d4ed8; font-weight: 800; padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.82rem; }
-    .posti-badge { display: inline-block; padding: 0.25rem 0.65rem; border-radius: 6px; font-weight: 700; font-size: 0.8rem; }
-    .posti-ok { background: #ecfdf5; color: #065f46; }
-    .posti-zero { background: #fef2f2; color: #dc2626; }
     .td-azioni { display: flex; gap: 0.5rem; flex-wrap: nowrap; }
     .btn-approva { padding: 0.45rem 0.85rem; background: #10b981; color: white; border: none; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.82rem; white-space: nowrap; }
     .btn-approva:disabled { background: #a7f3d0; cursor: not-allowed; }
@@ -659,6 +679,7 @@ export class AdminComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   authService = inject(AuthService);
 
+  // Segnali principali
   tornei = signal<Torneo[]>([]);
   studenti = signal<Studente[]>([]);
   studentiInCoda = signal<StudenteInCoda[]>([]);
@@ -677,6 +698,7 @@ export class AdminComponent implements OnInit {
   moduloCreazione = this.creaModuloVuoto();
   moduloModifica = { id: 0, ...this.creaModuloVuoto(), stato: 'Aperto' as string };
 
+  // Dati punteggio — variabili allineate al documento (torneo_id, utente_id, punti, posizione)
   datiPunteggio = {
     torneo_id: null as number | null,
     utente_id: null as number | null,
@@ -684,14 +706,17 @@ export class AdminComponent implements OnInit {
     posizione: 1
   };
 
+  // Limite iscrizioni per utente (gestito in localStorage, NON modifica posti_max del torneo)
   limiteMassimoIscrizioni = signal(3);
   limiteTemporaneoIscrizioni = 3;
 
+  // Stato modali
   modalAttivo = signal<string | null>(null);
   testoDomandaConferma = signal('');
   titoloFeedbackSuccesso = signal('');
   testoFeedbackSuccesso = signal('');
 
+  // Funzione di formattazione posizione coda — esposta al template
   formattaPosizioneCoda = formattaPosizioneCoda;
 
   private creaModuloVuoto() {
@@ -741,6 +766,8 @@ export class AdminComponent implements OnInit {
     }, 4000);
   }
 
+  // ---- CARICAMENTO DATI ----
+
   caricaTornei() {
     this.caricamentoTornei.set(true);
     this.cdr.markForCheck();
@@ -768,6 +795,7 @@ export class AdminComponent implements OnInit {
     });
   }
 
+  // Carica la lista d'attesa globale (tutti i tornei) per la dashboard admin
   caricaCoda() {
     this.caricamentoCoda.set(true);
     this.cdr.markForCheck();
@@ -785,6 +813,13 @@ export class AdminComponent implements OnInit {
     });
   }
 
+  // ---- LISTA D'ATTESA: APPROVA / RIFIUTA ----
+
+  /**
+   * Approva l'iscrizione di uno studente dalla lista d'attesa.
+   * Il backend incrementa automaticamente posti_max del torneo di 1 (es. 35 → 36).
+   * Il limite di iscrizioni per utente rimane invariato.
+   */
   approvaIscrizione(s: StudenteInCoda) {
     if (this.azioneInCorso() === s.iscrizione_id) return;
     this.azioneInCorso.set(s.iscrizione_id);
@@ -797,15 +832,18 @@ export class AdminComponent implements OnInit {
       next: () => {
         this.azioneInCorso.set(null);
         this.caricaCoda();
-        this.caricaTornei();
-        this.titoloFeedbackSuccesso.set('Iscrizione confermata');
-        this.testoFeedbackSuccesso.set(`Lo studente ${s.nome} ${s.cognome} è stato iscritto al torneo "${s.torneo_nome}". Il limite di iscritti del torneo è stato aumentato automaticamente.`);
+        this.caricaTornei(); // Aggiorna i tornei per riflettere il nuovo posti_max
+        this.titoloFeedbackSuccesso.set('Iscrizione approvata con successo');
+        this.testoFeedbackSuccesso.set(
+          `${s.nome} ${s.cognome} è stato iscritto al torneo "${s.torneo_nome}". ` +
+          `Il numero massimo di iscritti al torneo è aumentato automaticamente di 1.`
+        );
         this.modalAttivo.set('modal_successo');
         this.cdr.markForCheck();
       },
       error: (err) => {
         this.azioneInCorso.set(null);
-        this.mostraBanner('errore', err.error?.error || 'Errore durante l\'iscrizione.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante l\'approvazione.');
         this.cdr.markForCheck();
       }
     });
@@ -827,13 +865,14 @@ export class AdminComponent implements OnInit {
       },
       error: (err) => {
         this.azioneInCorso.set(null);
-        this.mostraBanner('errore', err.error?.error || 'Errore durante il rifiuto.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante il rifiuto.');
         this.cdr.markForCheck();
       }
     });
   }
 
-  // APERTURA MODAL CREAZIONE
+  // ---- GESTIONE MODALI TORNEI ----
+
   apriModalCreazione() {
     this.moduloCreazione = this.creaModuloVuoto();
     this.invioInCorso.set(false);
@@ -841,7 +880,6 @@ export class AdminComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  // APERTURA MODAL MODIFICA
   apriModalModifica() {
     if (!this.torneoDaModificareId) return;
     const bersaglio = this.tornei().find(t => t.id === this.torneoDaModificareId);
@@ -864,9 +902,9 @@ export class AdminComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  // CREAZIONE TORNEO
+  // CREA TORNEO — mostra card "Torneo creato con successo" e bottone "Torna alla dashboard"
   eseguiCreazioneConferma() {
-    if (this.invioInCorso()) return; // evita doppio submit
+    if (this.invioInCorso()) return;
     if (!this.moduloCreazione.nome?.trim() || !this.moduloCreazione.gioco?.trim() ||
         !this.moduloCreazione.data_inizio || !this.moduloCreazione.data_fine) {
       this.mostraBanner('errore', 'Compila tutti i campi obbligatori (*).');
@@ -886,13 +924,13 @@ export class AdminComponent implements OnInit {
       },
       error: (err) => {
         this.invioInCorso.set(false);
-        this.mostraBanner('errore', err.error?.error || 'Errore durante la creazione del torneo.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante la creazione del torneo.');
         this.cdr.markForCheck();
       }
     });
   }
 
-  // MODIFICA TORNEO
+  // MODIFICA TORNEO — mostra card "Torneo modificato con successo" e bottone "Torna alla dashboard"
   eseguiModificaConferma() {
     if (this.invioInCorso()) return;
 
@@ -910,13 +948,13 @@ export class AdminComponent implements OnInit {
       },
       error: (err) => {
         this.invioInCorso.set(false);
-        this.mostraBanner('errore', err.error?.error || 'Errore durante la modifica del torneo.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante la modifica del torneo.');
         this.cdr.markForCheck();
       }
     });
   }
 
-  // CHIEDI CONFERMA ELIMINAZIONE
+  // CHIEDI CONFERMA ELIMINAZIONE — apre dialog di conferma
   chiediConfermaEliminazione() {
     if (!this.torneoDaEliminareId) return;
     const bersaglio = this.tornei().find(t => t.id === this.torneoDaEliminareId);
@@ -925,7 +963,7 @@ export class AdminComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  // ESEGUI ELIMINAZIONE
+  // ELIMINA TORNEO — dopo conferma mostra card "Torneo eliminato con successo" e bottone "Torna alla dashboard"
   eseguiEliminazione() {
     if (!this.torneoDaEliminareId || this.invioInCorso()) return;
     this.invioInCorso.set(true);
@@ -944,13 +982,14 @@ export class AdminComponent implements OnInit {
       error: (err) => {
         this.invioInCorso.set(false);
         this.chiudiModal();
-        this.mostraBanner('errore', err.error?.error || 'Errore durante l\'eliminazione del torneo.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante l\'eliminazione del torneo.');
         this.cdr.markForCheck();
       }
     });
   }
 
-  // LIMITE ISCRIZIONI
+  // ---- LIMITE ISCRIZIONI ----
+
   chiediConfermaLimiteIscrizioni() {
     if (this.limiteTemporaneoIscrizioni < 1) return;
     this.testoDomandaConferma.set(`Vuoi impostare il limite a ${this.limiteTemporaneoIscrizioni} iscrizioni per utente?`);
@@ -967,7 +1006,13 @@ export class AdminComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  // SALVA PUNTEGGIO
+  // ---- PUNTEGGI ----
+
+  /**
+   * Inserisce/aggiorna il punteggio di uno studente.
+   * Mostra card "Punteggio inserito" con bottone "Torna alla dashboard".
+   * Variabili allineate al documento: torneo_id, utente_id, punti, posizione.
+   */
   salvaPunteggio() {
     if (!this.datiPunteggio.torneo_id || !this.datiPunteggio.utente_id || this.salvataggioInCorso()) return;
 
@@ -988,11 +1033,13 @@ export class AdminComponent implements OnInit {
       },
       error: (err) => {
         this.salvataggioInCorso.set(false);
-        this.mostraBanner('errore', err.error?.error || 'Errore durante il salvataggio del punteggio.');
+        this.mostraBanner('errore', err.error?.errore || err.error?.error || 'Errore durante il salvataggio del punteggio.');
         this.cdr.markForCheck();
       }
     });
   }
+
+  // ---- CHIUDI MODAL ----
 
   chiudiModal() {
     this.modalAttivo.set(null);

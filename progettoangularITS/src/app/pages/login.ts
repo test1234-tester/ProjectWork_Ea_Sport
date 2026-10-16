@@ -310,7 +310,7 @@ export class LoginComponent {
       },
       error: (err) => {
         this.caricamento = false;
-        this.messaggioErrore = err.error?.error || 'Email o password non corretti. Riprova.';
+        this.messaggioErrore = err.error?.errore || err.error?.error || 'Email o password non corretti. Riprova.';
       }
     });
   }

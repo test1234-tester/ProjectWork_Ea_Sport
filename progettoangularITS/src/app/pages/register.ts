@@ -48,15 +48,86 @@ import { AuthService } from '../services/auth.service';
             </div>
 
             <div class="form-row">
+              <!-- Campo Crea Password con icona occhio toggle -->
               <div class="form-group">
                 <label for="password">Crea Password</label>
-                <input [type]="mostraPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="datiRegistrazione.password" required />
+                <div class="password-wrapper">
+                  <input
+                    [type]="mostraPassword ? 'text' : 'password'"
+                    id="password"
+                    name="password"
+                    [(ngModel)]="datiRegistrazione.password"
+                    required
+                    placeholder="Almeno 8 caratteri"
+                  />
+                  <button
+                    type="button"
+                    class="btn-toggle-password"
+                    (click)="alternaVisibilitaPassword()"
+                    [attr.aria-label]="mostraPassword ? 'Nascondi password' : 'Mostra password'"
+                    [title]="mostraPassword ? 'Nascondi password' : 'Mostra password'"
+                  >
+                    @if (mostraPassword) {
+                      <!-- Icona Occhio Aperto -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    } @else {
+                      <!-- Icona Occhio Barrato -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                        <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                        <line x1="2" x2="22" y1="2" p2="22"/>
+                      </svg>
+                    }
+                  </button>
+                </div>
               </div>
+
+              <!-- Campo Conferma Password con icona occhio toggle -->
               <div class="form-group">
                 <label for="confirmPassword">Conferma Password</label>
-                <input [type]="mostraPassword ? 'text' : 'password'" id="confirmPassword" name="confirmPassword" [(ngModel)]="datiRegistrazione.confermaPassword" required />
+                <div class="password-wrapper">
+                  <input
+                    [type]="mostraConfermaPassword ? 'text' : 'password'"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    [(ngModel)]="datiRegistrazione.confermaPassword"
+                    required
+                    placeholder="Ripeti la password"
+                  />
+                  <button
+                    type="button"
+                    class="btn-toggle-password"
+                    (click)="alternaVisibilitaConfermaPassword()"
+                    [attr.aria-label]="mostraConfermaPassword ? 'Nascondi password' : 'Mostra password'"
+                    [title]="mostraConfermaPassword ? 'Nascondi password' : 'Mostra password'"
+                  >
+                    @if (mostraConfermaPassword) {
+                      <!-- Icona Occhio Aperto -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    } @else {
+                      <!-- Icona Occhio Barrato -->
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
+                        <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
+                        <path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
+                        <line x1="2" x2="22" y1="2" p2="22"/>
+                      </svg>
+                    }
+                  </button>
+                </div>
               </div>
             </div>
+
+            <p class="password-requirements">
+              Requisiti password: almeno 8 caratteri.
+            </p>
 
             <button type="submit" class="btn-submit" [disabled]="caricamento()">
               {{ caricamento() ? 'Registrazione in corso...' : 'Registrati' }}
@@ -81,6 +152,44 @@ import { AuthService } from '../services/auth.service';
     label { font-size: 0.9rem; font-weight: 700; color: #0f172a; }
     input { width: 100%; padding: 0.75rem 1rem; border: 1.5px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; }
     input:focus { outline: none; border-color: #0f172a; }
+
+    /* WRAPPER PASSWORD CON ICONA OCCHIO */
+    .password-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .password-wrapper input {
+      padding-right: 2.75rem;
+    }
+    .btn-toggle-password {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: #64748b;
+      cursor: pointer;
+      padding: 0.35rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: color 0.2s ease, background-color 0.2s ease;
+    }
+    .btn-toggle-password:hover {
+      color: #0f172a;
+      background-color: #f1f5f9;
+    }
+    .password-requirements {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin: -0.5rem 0 0.25rem 0;
+      line-height: 1.4;
+    }
+
     .btn-submit { width: 100%; padding: 0.85rem; background-color: #0f172a; color: #ffffff; border: none; border-radius: 8px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background-color 0.2s; }
     .btn-submit:hover:not(:disabled) { background-color: #1e293b; }
     .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -115,9 +224,18 @@ export class RegisterComponent {
 
   datiRegistrazione = { nome: '', cognome: '', email: '', password: '', confermaPassword: '' };
   mostraPassword = false;
+  mostraConfermaPassword = false;
   mostraSuccesso = signal(false);
   caricamento = signal(false);
   messaggioErrore = signal('');
+
+  alternaVisibilitaPassword() {
+    this.mostraPassword = !this.mostraPassword;
+  }
+
+  alternaVisibilitaConfermaPassword() {
+    this.mostraConfermaPassword = !this.mostraConfermaPassword;
+  }
 
   inviaRegistrazione() {
     this.messaggioErrore.set('');
@@ -152,7 +270,7 @@ export class RegisterComponent {
       },
       error: (err) => {
         this.caricamento.set(false);
-        this.messaggioErrore.set(err.error?.error || 'Errore durante la registrazione. Riprova.');
+        this.messaggioErrore.set(err.error?.errore || err.error?.error || 'Errore durante la registrazione. Riprova.');
         this.cdr.markForCheck();
       }
     });
@@ -161,4 +279,4 @@ export class RegisterComponent {
   vaiAlLogin() {
     this.router.navigate(['/login']);
   }
-}
+}

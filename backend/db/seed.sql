@@ -42,19 +42,20 @@ INSERT INTO iscrizione (utente_id, torneo_id, stato, data_iscrizione) VALUES
   (4, 2, 'Confermata', '2026-10-14T10:01:41.009Z'),
   (6, 3, 'Confermata', '2026-10-15T12:35:01.395Z'),
   (6, 4, 'Confermata', '2026-10-15T12:49:46.483Z'),
-  (11, 19, 'Confermata', '2026-10-15T14:30:06.850Z'),
-  (6, 19, 'Confermata', '2026-10-15T14:31:18.874Z'),
-  (12, 19, 'Confermata', '2026-10-15T14:32:20.043Z'),
-  (13, 19, 'Confermata', '2026-10-15T14:50:54.755Z'),
+  (11, 1, 'Confermata', '2026-10-15T14:30:06.850Z'),
+  (6, 1, 'Confermata', '2026-10-15T14:31:18.874Z'),
+  (12, 1, 'In_Attesa', '2026-10-15T14:32:20.043Z'),
+  (13, 1, 'In_Attesa', '2026-10-15T14:50:54.755Z'),
+  (14, 2, 'In_Attesa', '2026-10-15T15:10:00.000Z'),
   (13, 5, 'Confermata', '2026-10-15T15:39:04.075Z'),
-  (13, 18, 'Confermata', '2026-10-15T15:39:11.163Z');
+  (15, 5, 'Confermata', '2026-10-15T15:39:11.163Z');
 
 -- 4. RISULTATI
 INSERT INTO risultato (utente_id, torneo_id, punti, posizione, vittorie, sconfitte) VALUES
-  (6, 18, 150, 1, 0, 0),
-  (13, 19, 67, 3, 0, 0),
-  (14, 19, 100, 1945, 0, 0),
-  (13, 18, 55, 4, 0, 0);
+  (6, 1, 150, 1, 3, 0),
+  (11, 1, 67, 3, 1, 2),
+  (2, 2, 100, 2, 2, 1),
+  (13, 5, 55, 4, 0, 3);
 
 -- 5. FAQ
 INSERT INTO faq (domanda, risposta) VALUES
